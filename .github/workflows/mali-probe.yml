@@ -1,0 +1,48 @@
+name: mali-probe
+
+on:
+  push:
+    paths:
+      - 'mali-poc/**'
+      - '.github/workflows/mali-probe.yml'
+  pull_request:
+    paths:
+      - 'mali-poc/**'
+      - '.github/workflows/mali-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch Android NDK r27c
+        run: |
+          set -euo pipefail
+          curl -sSL --retry 3 -o /tmp/ndk.zip \
+            https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+          unzip -q /tmp/ndk.zip -d "$HOME"
+          echo "ANDROID_NDK_HOME=$HOME/android-ndk-r27c" >> "$GITHUB_ENV"
+
+      - name: Build mali_probe (arm64-v8a)
+        run: |
+          chmod +x mali-poc/build.sh
+          ./mali-poc/build.sh
+
+      - name: Show binary info
+        run: |
+          file mali-poc/mali_probe
+          ls -l mali-poc/mali_probe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mali_probe-arm64-v8a
+          path: mali-poc/mali_probe
+          if-no-files-found: error
+          retention-days: 30
