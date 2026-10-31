@@ -98,6 +98,12 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 11)
 
+if (ANDROID)
+    # The NDK does not ship the AOSP platform headers (cutils/native_handle.h,
+    # hardware/gralloc.h, ...). Use the copies vendored in third_party/android.
+    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/android/include)
+endif()
+
 if (APPLE)
     add_compile_definitions(VK_USE_PLATFORM_MACOS_MVK)
     add_compile_definitions(VK_USE_PLATFORM_METAL_EXT)
