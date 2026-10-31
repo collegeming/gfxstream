@@ -15,6 +15,8 @@
 # Use EGL platform specific definitions.
 if (APPLE)
     add_compile_definitions(__APPLE__)
+elseif(ANDROID)
+    # Android uses EGL from the NDK; the X11/GLX OS layer is not built.
 elseif(UNIX)
     add_compile_definitions(USE_X11)
 endif()
@@ -64,6 +66,13 @@ elseif (QNX)
         EGL_translator_static
         ${egl-translator-common-sources}
         ${egl-translator-qnx-sources})
+elseif (ANDROID)
+    # Mirrors the device variant in Android.bp: EGL OS layer only, no GLX/X11.
+    add_library(
+        EGL_translator_static
+        ${egl-translator-common-sources}
+        core_profile_configs_linux.cpp
+        egl_os_api_egl.cpp)
 else()
     add_library(
         EGL_translator_static
@@ -98,6 +107,8 @@ elseif (APPLE)
     target_link_libraries(EGL_translator_static PUBLIC "-framework AppKit -framework IOSurface")
 elseif (QNX)
     target_link_libraries(EGL_translator_static PUBLIC "-lscreen -lregex -lEGL -lGLESv2")
+elseif (ANDROID)
+    target_link_libraries(EGL_translator_static PUBLIC "-ldl -llog -lEGL -lGLESv2")
 else()
     target_link_libraries(EGL_translator_static PUBLIC "-ldl -lpthread")
 endif()

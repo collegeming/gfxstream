@@ -15,6 +15,8 @@
 # Use EGL platform specific definitions.
 if (APPLE)
     add_compile_definitions(__APPLE__)
+elseif(ANDROID)
+    # Android uses EGL from the NDK; no X11.
 elseif(UNIX)
     add_compile_definitions(USE_X11)
 endif()
