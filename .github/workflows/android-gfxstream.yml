@@ -1,0 +1,57 @@
+name: android-gfxstream
+
+# Cross-compiles libgfxstream_backend.so for arm64-v8a Android (bionic) with
+# the NDK, including the Mali BGRA8 emulation patch on this branch.
+on:
+  push:
+    paths:
+      - '.github/workflows/android-gfxstream.yml'
+      - 'host/**'
+      - 'common/**'
+      - 'third_party/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch Android NDK r27c
+        run: |
+          set -euo pipefail
+          curl -sSL --retry 3 -o /tmp/ndk.zip \
+            https://dl.google.com/android/repository/android-ndk-r27c-linux.zip
+          unzip -q /tmp/ndk.zip -d "$HOME"
+          echo "ANDROID_NDK_HOME=$HOME/android-ndk-r27c" >> "$GITHUB_ENV"
+
+      - name: Configure (CMake + NDK toolchain)
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-android \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-33 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_STANDALONE=ON
+
+      - name: Build gfxstream_backend
+        run: |
+          set -euo pipefail
+          cmake --build build-android --target gfxstream_backend -j"$(nproc)"
+
+      - name: Show artifact
+        run: |
+          find build-android -name 'libgfxstream_backend.so' -exec ls -l {} \;
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libgfxstream_backend-android-arm64
+          path: build-android/**/libgfxstream_backend.so
+          if-no-files-found: error
+          retention-days: 14
