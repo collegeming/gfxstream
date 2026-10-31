@@ -105,6 +105,11 @@ if (WIN32)
 elseif (QNX)
     set(gfxstream_common_base_platform_deps
         dl)
+elseif(ANDROID)
+    # bionic has no librt; the symbols live in libc. log for ALOG.
+    set(gfxstream_common_base_platform_deps
+        dl
+        log)
 elseif(LINUX)
     set(gfxstream_common_base_platform_deps
         dl
