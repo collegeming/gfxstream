@@ -9,6 +9,11 @@ elseif (WIN32)
 elseif (QNX)
     set(gfxstream_host_native_window_platform_sources
         native_sub_window_qnx.cpp)
+elseif (ANDROID)
+    # Android has no X11/desktop sub-windows; the display backend (Android
+    # display service / VNC / KMS) is handled elsewhere.
+    set(gfxstream_host_native_window_platform_sources
+        native_sub_window_android.cpp)
 else()
     set(gfxstream_host_native_window_platform_sources
         native_sub_window_x11.cpp)
