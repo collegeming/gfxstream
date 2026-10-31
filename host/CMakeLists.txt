@@ -200,6 +200,18 @@ if (APPLE)
         LINK_FLAGS  "-undefined dynamic_lookup -flat_namespace")
 endif()
 
+if (ANDROID)
+    # bionic system libraries providing ANativeWindow/AHardwareBuffer and the
+    # graphics APIs used by the stream renderer.
+    target_link_libraries(gfxstream_backend
+        PRIVATE
+        android
+        log
+        EGL
+        GLESv2
+        vulkan)
+endif()
+
 if (LINUX)
     # Make sure we embed an build-id that can be used by crashpad.
     target_link_options(gfxstream_backend PRIVATE "LINKER:--build-id=sha1")
