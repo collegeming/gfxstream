@@ -1311,6 +1311,27 @@ std::unique_ptr<VkEmulation> VkEmulation::create(VulkanDispatch* gvk,
                                                                 &emulation->mImageSupportInfo.mSupportInfos[i]);
     }
 
+    // Some drivers (notably Mali) only accept R8G8B8A8_UNORM for
+    // AHardwareBuffer-backed images and report VK_ERROR_FORMAT_NOT_SUPPORTED for
+    // every B8G8R8A8_UNORM combination. Probe that up front so
+    // GetInternalFormatLocked() can transparently emulate BGRA8 color buffers
+    // with RGBA8 ones.
+    {
+        const auto& imageSupport = emulation->mImageSupportInfo;
+        const bool bgra8Supported =
+            imageSupport.FindSupportedInfo(VK_FORMAT_B8G8R8A8_UNORM,
+                                           VK_IMAGE_TILING_OPTIMAL) != nullptr ||
+            imageSupport.FindSupportedInfo(VK_FORMAT_B8G8R8A8_UNORM,
+                                           VK_IMAGE_TILING_LINEAR) != nullptr;
+        emulation->mBgra8ColorBufferSupported = bgra8Supported;
+        if (!bgra8Supported &&
+            emulation->mDeviceInfo.externalMemoryMode == ExternalMemory::Mode::AndroidAHB) {
+            GFXSTREAM_INFO(
+                "B8G8R8A8_UNORM is not supported with AHardwareBuffer external memory; "
+                "emulating BGRA8 color buffers with R8G8B8A8_UNORM.");
+        }
+    }
+
     if (!emulation->mDeviceInfo.hasGraphicsQueueFamily) {
         GFXSTREAM_ERROR("No Vulkan devices with graphics queues found.");
         return nullptr;
@@ -3046,6 +3067,21 @@ VkEmulation::GetInternalFormatLocked(GfxstreamFormat format) {
         }
     }
 
+    if (format == GfxstreamFormat::B8G8R8A8_UNORM && !mBgra8ColorBufferSupported &&
+        mDeviceInfo.externalMemoryMode == ExternalMemory::Mode::AndroidAHB) {
+        // The driver does not expose B8G8R8A8_UNORM for AHardwareBuffer images
+        // (Mali reports VK_ERROR_FORMAT_NOT_SUPPORTED for every tiling, usage
+        // and create-flag combination). R8G8B8A8_UNORM is in the same Vulkan
+        // format compatibility class and color buffer images are created with
+        // VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT |
+        // VK_IMAGE_CREATE_EXTENDED_USAGE_BIT, so guests can still create
+        // B8G8R8A8 views on them. Rendering and sampling operate on components,
+        // so the substitution is transparent; only byte-level CPU transfers
+        // need channel conversion, which
+        // updateColorBufferFromBytesLocked() performs for this case.
+        return GfxstreamFormat::R8G8B8A8_UNORM;
+    }
+
     return format;
 }
 
@@ -4333,8 +4369,28 @@ static void convertRgbToRgbaPixels(void* dst, const void* src, uint32_t w, uint3
     }
 }
 
-static void convertRgba4ToBGRA4Pixels(void* dst, const void* src, uint32_t w, uint32_t h) {
+// BGRA8 -> RGBA8 byte conversion, used when a BGRA8 color buffer is emulated
+// with an RGBA8 image because the driver does not expose BGRA8 for
+// AHardwareBuffer-backed images.
+static void convertBgraToRgbaPixels(void* dst, const void* src, uint32_t w, uint32_t h) {
     const size_t pixelCount = w * h;
+    const uint8_t* srcBytes = reinterpret_cast<const uint8_t*>(src);
+    uint8_t* dstBytes = reinterpret_cast<uint8_t*>(dst);
+    for (size_t i = 0; i < pixelCount; ++i) {
+        const uint8_t b = srcBytes[0];
+        const uint8_t g = srcBytes[1];
+        const uint8_t r = srcBytes[2];
+        const uint8_t a = srcBytes[3];
+        dstBytes[0] = r;
+        dstBytes[1] = g;
+        dstBytes[2] = b;
+        dstBytes[3] = a;
+        srcBytes += 4;
+        dstBytes += 4;
+    }
+}
+
+static void convertRgba4ToBGRA4Pixels(void* dst, const void* src, uint32_t w, uint32_t h) {    const size_t pixelCount = w * h;
     const uint16_t* srcPixels = reinterpret_cast<const uint16_t*>(src);
     uint16_t* dstPixels = reinterpret_cast<uint16_t*>(dst);
     for (size_t i = 0; i < pixelCount; ++i) {
@@ -4414,6 +4470,20 @@ bool VkEmulation::updateColorBufferFromBytesLocked(uint32_t colorBufferHandle, u
                 return false;
             }
             convertRgbToRgbaPixels(stagingBufferPtr, pixels, w, h);
+        } else if (colorBufferInfo->format == GfxstreamFormat::B8G8R8A8_UNORM &&
+                   colorBufferInfo->internalFormat == GfxstreamFormat::R8G8B8A8_UNORM) {
+            // BGRA8 color buffer emulated with an RGBA8 image (see
+            // GetInternalFormatLocked()). The guest supplies BGRA8 bytes, the
+            // internal image stores RGBA8.
+            const size_t expectedInputSize = dstBufferSize;
+            if (inputPixelsSize != 0 && inputPixelsSize != expectedInputSize) {
+                GFXSTREAM_ERROR(
+                    "Unexpected contents size when trying to update ColorBuffer:%d, "
+                    "provided:%zu expected:%zu",
+                    colorBufferHandle, inputPixelsSize, expectedInputSize);
+                return false;
+            }
+            convertBgraToRgbaPixels(stagingBufferPtr, pixels, w, h);
         } else {
             const std::string formatString = ToString(colorBufferInfo->format);
             const std::string internalFormatString = ToString(colorBufferInfo->internalFormat);

@@ -704,6 +704,12 @@ class VkEmulation {
 
     ImageSupport mImageSupportInfo = ImageSupport::GetDefaultUnpopulatedImageSupport();
 
+    // True when the Vulkan driver accepts B8G8R8A8_UNORM images backed by
+    // AHardwareBuffer external memory. Mali (and some other AHB drivers) only
+    // report R8G8B8A8_UNORM as usable, so gfxstream emulates BGRA8 color
+    // buffers with RGBA8 images (see GetInternalFormatLocked()).
+    bool mBgra8ColorBufferSupported = true;
+
     vk_util::YcbcrSamplerPool mYcbcrSamplerPool;
 
     // 128 mb staging buffer (really, just a few 4K frames or one 4k HDR frame)

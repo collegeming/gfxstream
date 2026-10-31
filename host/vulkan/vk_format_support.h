@@ -45,6 +45,10 @@ class ImageSupport {
 
     const ImageSupportInfo* GetSupportedInfo(VkFormat format, VkImageTiling tiling) const;
 
+    // Like GetSupportedInfo() but without logging when the format/tiling is not
+    // supported. Used for capability probing during device initialization.
+    const ImageSupportInfo* FindSupportedInfo(VkFormat format, VkImageTiling tiling) const;
+
     std::optional<uint32_t> GetNumberOfNeededCombinedImageSamplerDescriptors(VkFormat format) const;
 
   private:

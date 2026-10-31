@@ -146,12 +146,21 @@ bool ImageSupport::IsFormatSupported(VkFormat format) const {
     return supported;
 }
 
-const ImageSupportInfo* ImageSupport::GetSupportedInfo(VkFormat format,
-                                                       VkImageTiling tiling) const {
+const ImageSupportInfo* ImageSupport::FindSupportedInfo(VkFormat format,
+                                                        VkImageTiling tiling) const {
     for (const auto& supportInfo : mSupportInfos) {
         if (supportInfo.format == format && supportInfo.tiling == tiling && supportInfo.supported) {
             return &supportInfo;
         }
+    }
+    return nullptr;
+}
+
+const ImageSupportInfo* ImageSupport::GetSupportedInfo(VkFormat format,
+                                                       VkImageTiling tiling) const {
+    const ImageSupportInfo* supportInfo = FindSupportedInfo(format, tiling);
+    if (supportInfo) {
+        return supportInfo;
     }
     GFXSTREAM_WARNING("Could not find support info for format: %s [%d] and tiling: %d",
                       string_VkFormat(format), (int)format, (int)tiling);
