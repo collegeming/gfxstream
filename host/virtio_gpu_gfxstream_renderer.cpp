@@ -139,7 +139,24 @@ ParseGfxstreamFeatures(const int rendererFlags,
                                            features.VulkanAllocateHostVisibleAsUdmabuf.enabled());
     GFXSTREAM_SET_BOOL_FEATURE_ON_CONDITION(&features, VulkanEnsureCachedCoherentMemoryAvailable, true);
 
-    for (const std::string& rendererFeature : gfxstream::Split(rendererFeatures, ",;")) {
+    // Allow bring-up/test overrides from the environment. This matters on
+    // devices whose kernel version does not match the built-in policy gate
+    // (e.g. IsAndroidKernel6_6) even though /dev/udmabuf is usable.
+    std::string effectiveRendererFeatures = rendererFeatures;
+    {
+        const std::string envFeatures =
+            gfxstream::base::getEnvironmentVariable("GFXSTREAM_RENDERER_FEATURES");
+        if (!envFeatures.empty()) {
+            if (!effectiveRendererFeatures.empty()) {
+                effectiveRendererFeatures += ",";
+            }
+            effectiveRendererFeatures += envFeatures;
+            GFXSTREAM_INFO("Applying renderer features from GFXSTREAM_RENDERER_FEATURES: %s",
+                           envFeatures.c_str());
+        }
+    }
+
+    for (const std::string& rendererFeature : gfxstream::Split(effectiveRendererFeatures, ",;")) {
         if (rendererFeature.empty()) continue;
 
         if (!features.processFeatureString(
