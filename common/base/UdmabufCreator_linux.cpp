@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <errno.h>
 #include <fcntl.h>
 #include <linux/udmabuf.h>
 #include <sys/ioctl.h>
@@ -19,6 +20,7 @@
 #include <unistd.h>
 
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 
 #include "gfxstream/memory/UdmabufCreator.h"
@@ -83,6 +85,9 @@ UdmabufCreator::~UdmabufCreator() {}
 bool UdmabufCreator::init() {
     auto rawDescriptor = open("/dev/udmabuf", O_RDONLY);
     if (rawDescriptor < 0) {
+        const int err = errno;
+        fprintf(stderr, "UdmabufCreator: open(/dev/udmabuf) failed: errno=%d (%s)\n", err,
+                strerror(err));
         return false;
     }
 
