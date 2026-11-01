@@ -104,7 +104,12 @@ ExternalMemory::Mode ExternalMemory::calculateMode(
         Mode::HostAllocation,
     };
 #elif defined(__ANDROID__)
-    std::array<Mode, 1> supportedModes = {
+    // Linux guests hand us plain dma-buf handles. AHardwareBuffer import of
+    // udmabuf-backed fds is unreliable on this driver, so prefer the plain
+    // external-memory-fd path when the driver supports it and keep AHB as a
+    // fallback for Android guests.
+    std::array<Mode, 2> supportedModes = {
+        Mode::OpaqueFd,
         Mode::AndroidAHB,
     };
 #elif defined(__QNX__)
