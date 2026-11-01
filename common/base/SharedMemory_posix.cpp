@@ -169,17 +169,16 @@ int SharedMemory::openInternal(int oflag, int mode, bool doMapping) {
             return err;
         }
 
-#if defined(HAVE_MEMFD_CREATE)
-        // Do not add F_SEAL_SEAL: the kernel's udmabuf driver adds
-        // F_SEAL_SHRINK itself on UDMABUF_CREATE, and F_SEAL_SEAL makes that
-        // re-seal fail with EPERM, which would prevent host-visible blob
-        // memory from ever being created.
-        if (fcntl(mFd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW) == -1) {
+        // The kernel's udmabuf driver (check_memfd_seals) requires the memfd to
+        // already carry F_SEAL_SHRINK and to not carry F_SEAL_WRITE before it
+        // will export it. F_SEAL_SEAL must not be added here, or the memfd can
+        // never be sealed again by anyone else.
+        if (mShareType == ShareType::SHARED_MEMORY &&
+            fcntl(mFd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW) == -1) {
             err = -errno;
             close();
             return err;
         }
-#endif
     }
 
     if (doMapping) {
