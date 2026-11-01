@@ -6,9 +6,7 @@
 
 static void handler(int sig) {
     void *bt[64];
-    char msg[] = "
-=== BACKTRACE ===
-";
+    char msg[] = "\n=== BACKTRACE ===\n";
     int n = backtrace(bt, 64);
     write(2, msg, sizeof(msg) - 1);
     backtrace_symbols_fd(bt, n, 2);
