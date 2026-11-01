@@ -52,7 +52,6 @@ set(gfxstream_common_base_srcs
     StringFormat.cpp
     System.cpp
     Tracing.cpp
-    UdmabufCreator_stub.cpp
     )
 
 set(gfxstream_common_base_posix_srcs
@@ -74,13 +73,18 @@ endif()
 if(APPLE)
     set(gfxstream_common_base_platform_srcs
         ${gfxstream_common_base_posix_srcs}
+        UdmabufCreator_stub.cpp
         system-native-mac.mm)
 elseif(WIN32)
     set(gfxstream_common_base_platform_srcs
-        ${gfxstream_common_base_windows_srcs})
+        ${gfxstream_common_base_windows_srcs}
+        UdmabufCreator_stub.cpp)
 else()
+    # Linux and Android have a real /dev/udmabuf implementation; the stub
+    # always fails init() and would silently disable host-visible blob memory.
     set(gfxstream_common_base_platform_srcs
-        ${gfxstream_common_base_posix_srcs})
+        ${gfxstream_common_base_posix_srcs}
+        UdmabufCreator_linux.cpp)
 endif()
 
 set(gfxstream_common_base_srcs
