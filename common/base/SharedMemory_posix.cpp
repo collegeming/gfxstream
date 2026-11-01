@@ -21,6 +21,14 @@
 #endif
 #include <unistd.h>
 
+// Some libc/kernel header combinations do not expose the memfd flags.
+#ifndef MFD_CLOEXEC
+#define MFD_CLOEXEC 0x0001U
+#endif
+#ifndef MFD_ALLOW_SEALING
+#define MFD_ALLOW_SEALING 0x0002U
+#endif
+
 #include "gfxstream/EintrWrapper.h"
 #include "gfxstream/Macros.h"
 #include "gfxstream/files/PathUtils.h"
@@ -127,7 +135,10 @@ int SharedMemory::openInternal(int oflag, int mode, bool doMapping) {
 #elif defined(HAVE_MEMFD_CREATE)
         mFd = memfd_create(mName.c_str(), MFD_CLOEXEC | MFD_ALLOW_SEALING);
 #else
-        mFd = syscall(__NR_memfd_create, mName.c_str(), FD_CLOEXEC);
+        // MFD_ALLOW_SEALING is required: the kernel's udmabuf driver seals the
+        // memfd with F_ADD_SEALS(F_SEAL_SHRINK) on UDMABUF_CREATE, which fails
+        // with EINVAL for memfds created without sealing support.
+        mFd = syscall(__NR_memfd_create, mName.c_str(), MFD_CLOEXEC | MFD_ALLOW_SEALING);
 #endif
     } else {
         mFd = ::open(mName.c_str(), oflag, mode);
