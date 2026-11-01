@@ -672,7 +672,11 @@ void VirtioGpuFrontend::fillCaps(uint32_t set, void* caps) {
             }
 
             capset->hasTraceAsyncCommand = 1;
-            capset->hasSetMetadataCommand = 1;
+            // The guest's GfxStreamVulkanConnection sends debug metadata from its
+            // constructor, before the command stream is usable, and crashes in
+            // vkSetDebugMetadataAsyncGOOGLE. The metadata is debug-only, so do
+            // not advertise the capability until the guest path is fixed.
+            capset->hasSetMetadataCommand = 0;
             capset->hasGuestCapabilities = 1;
 
             break;
