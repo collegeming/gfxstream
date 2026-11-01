@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <linux/udmabuf.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <sys/utsname.h>
 #include <unistd.h>
 
@@ -98,6 +99,19 @@ bool UdmabufCreator::init() {
 std::optional<DescriptorType> UdmabufCreator::handleFromSharedMemory(SharedMemory& memory) {
     // An udmabuf-created fd and a shared memory fd have separate lifetimes, but alias the same set
     // of kernel pages.
+    const int memfd = (int)memory.getFd();
+    {
+        struct stat st = {};
+        char linkPath[64];
+        char linkTarget[256] = "?";
+        snprintf(linkPath, sizeof(linkPath), "/proc/self/fd/%d", memfd);
+        ssize_t n = readlink(linkPath, linkTarget, sizeof(linkTarget) - 1);
+        if (n > 0) linkTarget[n] = '\0';
+        int seals = fcntl(memfd, F_GET_SEALS);
+        fprintf(stderr,
+                "UdmabufCreator: fd=%d target=%s stat=%d size=%lld seals=%#x errno=%d\n", memfd,
+                linkTarget, fstat(memfd, &st), (long long)st.st_size, seals, errno);
+    }
     const struct udmabuf_create create = {
         .memfd = (uint32_t)memory.getFd(),
         .flags = UDMABUF_FLAGS_CLOEXEC,
