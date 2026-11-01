@@ -2577,10 +2577,12 @@ bool VkEmulation::allocExternalMemory(VulkanDispatch* vk, VkEmulation::ExternalM
             int exportFd = -1;
             exportRes = vk->vkGetMemoryFdKHR(mDevice, &getFdInfo, &exportFd);
             validHandle = (VK_SUCCESS == exportRes) && (-1 != exportFd);
-            info->handleInfo = ExternalHandleInfo{
-                .handle = exportFd,
-                .streamHandleType = streamHandleType,
-            };
+            if (validHandle) {
+                info->handleInfo = ExternalHandleInfo{
+                    .handle = exportFd,
+                    .streamHandleType = streamHandleType,
+                };
+            }
             break;
         }
 
@@ -2657,6 +2659,17 @@ bool VkEmulation::allocExternalMemory(VulkanDispatch* vk, VkEmulation::ExternalM
     }
 
     if (exportRes != VK_SUCCESS || !validHandle) {
+        // Mali cannot export device memory as dma-buf. For OpaqueFd mode a
+        // ColorBuffer that cannot be exported is still usable: the display path
+        // in this stack reads frames back with transfer_read instead of handing
+        // an fd to the guest, so keep the allocation and only skip the handle.
+        if (mDeviceInfo.externalMemoryMode == ExternalMemory::Mode::OpaqueFd && colorBufferInfo) {
+            GFXSTREAM_WARNING(
+                "%s: ColorBuffer %u export failed (%s); continuing without an external handle",
+                __func__, (*colorBufferInfo)->handle, string_VkResult(exportRes));
+            (*colorBufferInfo)->externalMemoryCompatible = false;
+            return true;
+        }
         GFXSTREAM_WARNING("%s: Failed to get external memory, result: %s", __func__,
                           string_VkResult(exportRes));
         return false;
