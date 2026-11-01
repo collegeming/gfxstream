@@ -106,6 +106,9 @@ std::optional<DescriptorType> UdmabufCreator::handleFromSharedMemory(SharedMemor
 
     DescriptorType udmabuf = ioctl(*mOsHandleCreator.get(), UDMABUF_CREATE, &create);
     if (udmabuf < 0) {
+        const int err = errno;
+        fprintf(stderr, "UdmabufCreator: UDMABUF_CREATE failed: errno=%d (%s) size=%llu\n", err,
+                strerror(err), (unsigned long long)create.size);
         return std::nullopt;
     }
 

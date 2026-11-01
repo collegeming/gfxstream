@@ -159,7 +159,11 @@ int SharedMemory::openInternal(int oflag, int mode, bool doMapping) {
         }
 
 #if defined(HAVE_MEMFD_CREATE)
-        if (fcntl(mFd, F_ADD_SEALS, F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW) == -1) {
+        // Do not add F_SEAL_SEAL: the kernel's udmabuf driver adds
+        // F_SEAL_SHRINK itself on UDMABUF_CREATE, and F_SEAL_SEAL makes that
+        // re-seal fail with EPERM, which would prevent host-visible blob
+        // memory from ever being created.
+        if (fcntl(mFd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW) == -1) {
             err = -errno;
             close();
             return err;
