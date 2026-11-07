@@ -14,6 +14,8 @@
 
 #include "vulkan_boxed_handles.h"
 
+#include <atomic>
+
 #include "vk_decoder_global_state.h"
 #include "vk_decoder_internal_structs.h"
 
@@ -429,6 +431,19 @@ VkObjectT unbox_VkType(VkObjectT boxed) {
                 GFXSTREAM_ERROR("Failed to unbox %s %p", GetTypeStr<VkObjectT>(), boxed);
             } else if constexpr (std::is_same_v<VkObjectT, VkFence>) {
                 // TODO: investigate.
+            } else if constexpr (std::is_same_v<VkObjectT, VkImage>) {
+                // A guest may reference an image before its create call has
+                // been decoded, so an unregistered boxed handle is a
+                // recoverable protocol error for this type. Log once with the
+                // type/handle and return VK_NULL_HANDLE instead of aborting
+                // the whole gfxstream daemon.
+                static std::atomic<bool> loggedMissingImage{false};
+                if (!loggedMissingImage.exchange(true)) {
+                    GFXSTREAM_ERROR(
+                        "Failed to unbox %s %p (unregistered guest handle, returning "
+                        "VK_NULL_HANDLE)",
+                        GetTypeStr<VkObjectT>(), boxed);
+                }
             } else {
                 GFXSTREAM_FATAL("Failed to unbox %s %p", GetTypeStr<VkObjectT>(), boxed);
             }
